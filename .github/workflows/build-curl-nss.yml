@@ -1,4 +1,4 @@
-name: Build curl + NSS (Windows x64, native)
+name: Build curl + NSS (Windows x64 via vcpkg)
 
 on:
   push:
@@ -14,59 +14,26 @@ jobs:
       NSPR_VERSION: "4.33"
       NSS_VERSION: "3.100"
       PREFIX: ${{ github.workspace }}/dist/windows
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       # --------------------------
-      # Install dependencies
+      # Install vcpkg
       # --------------------------
-      - name: Install dependencies
+      - name: Install vcpkg
         run: |
-          choco install -y git cmake ninja
+          git clone https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+          & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat"
 
       # --------------------------
-      # Download NSPR
+      # Install dependencies via vcpkg
       # --------------------------
-      - name: Download NSPR
+      - name: Install curl dependencies
         run: |
-          Invoke-WebRequest -Uri "https://ftp.mozilla.org/pub/nspr/releases/v${env:NSPR_VERSION}/src/nspr-${env:NSPR_VERSION}.tar.gz" -OutFile "nspr-${env:NSPR_VERSION}.tar.gz"
-          tar -xzf "nspr-${env:NSPR_VERSION}.tar.gz"
-          # 两级目录处理
-          Move-Item -Path "nspr-${env:NSPR_VERSION}\nspr" -Destination "nspr"
-          Remove-Item -Recurse -Force "nspr-${env:NSPR_VERSION}"
-
-      - name: Build NSPR
-        shell: powershell
-        run: |
-          cd nspr
-          nmake /f Makefile.nt TARGET=U /nologo
-          mkdir -p $env:PREFIX/include/nspr
-          Copy-Item -Recurse public/* $env:PREFIX/include/nspr
-          mkdir -p $env:PREFIX/lib
-          Copy-Item lib/*.lib $env:PREFIX/lib
-
-      # --------------------------
-      # Download NSS
-      # --------------------------
-      - name: Download NSS
-        run: |
-          Invoke-WebRequest -Uri "https://ftp.mozilla.org/pub/security/nss/releases/NSS_${env:NSS_VERSION}_RTM/src/nss-${env:NSS_VERSION}.tar.gz" -OutFile "nss-${env:NSS_VERSION}.tar.gz"
-          tar -xzf "nss-${env:NSS_VERSION}.tar.gz"
-          # 两级目录处理
-          Move-Item -Path "nss-${env:NSS_VERSION}\nss" -Destination "nss"
-          Remove-Item -Recurse -Force "nss-${env:NSS_VERSION}"
-
-      - name: Build NSS
-        shell: powershell
-        run: |
-          cd nss
-          nmake /f Makefile.nt TARGET=U /nologo
-          mkdir -p $env:PREFIX/include/nss
-          Copy-Item -Recurse public/* $env:PREFIX/include/nss
-          mkdir -p $env:PREFIX/lib
-          Copy-Item lib/*.lib $env:PREFIX/lib
+          & "$env:VCPKG_ROOT\vcpkg.exe" install zlib:x64-windows brotli:x64-windows zstd:x64-windows nghttp2:x64-windows nss:x64-windows
 
       # --------------------------
       # Clone curl
@@ -75,31 +42,30 @@ jobs:
         run: git clone --branch curl-${{ env.CURL_VERSION }} https://github.com/curl/curl.git curl-src
 
       # --------------------------
-      # Build curl with NSS
+      # Build curl with NSS via vcpkg
       # --------------------------
       - name: Build curl
-        shell: powershell
         run: |
           mkdir curl-build
           cd curl-build
           cmake ..\curl-src `
-            -G "NMake Makefiles" `
+            -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
             -DCMAKE_BUILD_TYPE=Release `
             -DCURL_USE_NSS=ON `
-            -DNSS_ROOT=$env:PREFIX `
             -DBUILD_CURL_EXE=ON `
             -DBUILD_SHARED_LIBS=OFF
-          nmake /nologo
+          cmake --build . --config Release
 
       # --------------------------
       # Package output
       # --------------------------
       - name: Package curl
-        shell: powershell
         run: |
           mkdir -p $env:PREFIX/bin
-          Copy-Item curl-build/src/curl.exe $env:PREFIX/bin
-          Copy-Item $env:PREFIX/lib/*.dll $env:PREFIX/bin -ErrorAction SilentlyContinue
+          Copy-Item curl-build/src/Release/curl.exe $env:PREFIX/bin
+          # 拷贝可能的 NSS dll
+          Copy-Item $env:VCPKG_ROOT\installed\x64-windows\bin\*.dll $env:PREFIX/bin -ErrorAction SilentlyContinue
           Compress-Archive -Path $env:PREFIX/bin/* -DestinationPath $env:PREFIX/curl-nss-windows.zip
 
       - name: Upload artifact
