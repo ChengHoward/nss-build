@@ -31,6 +31,13 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-x64
 
+      - name: Ensure vcpkg exists
+        run: |
+          if (-not (Test-Path $env:VCPKG_ROOT\vcpkg.exe)) {
+            Write-Host "vcpkg.exe not found, bootstrap..."
+            & "$env:VCPKG_ROOT/bootstrap-vcpkg.bat"
+          }
+
       # --------------------------
       # Install vcpkg if not cached
       # --------------------------
