@@ -12,7 +12,8 @@ jobs:
     env:
       PREFIX: ${{ github.workspace }}/dist/windows
       CURL_VERSION: "8.17.0"
-      NSS_VERSION: "3.91"
+      NSPR_VERSION: "4.33"
+      NSS_VERSION: "3.100"
       DEBIAN_FRONTEND: noninteractive
       TZ: Etc/UTC
 
@@ -23,13 +24,38 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential mingw-w64 git cmake zip wget unzip
+          sudo apt-get install -y build-essential mingw-w64 git cmake zip wget unzip autoconf libtool
 
-      - name: Download prebuilt NSS Windows
+      - name: Download NSPR
         run: |
-          wget -O nss-win.zip https://ftp.mozilla.org/pub/security/nss/releases/NSS_3_91_RTM/win32/nss-3.91.zip
-          mkdir -p $PREFIX
-          unzip nss-win.zip -d $PREFIX
+          wget https://ftp.mozilla.org/pub/nspr/releases/v${NSPR_VERSION}/src/nspr-${NSPR_VERSION}.tar.gz
+          tar xf nspr-${NSPR_VERSION}.tar.gz
+          mv nspr-${NSPR_VERSION} nspr
+
+      - name: Build NSPR (cross‑compile Windows x64)
+        run: |
+          cd nspr
+          ./configure --host=x86_64-w64-mingw32 --prefix=$PREFIX
+          make -j$(nproc)
+          mkdir -p $PREFIX/include/nspr
+          cp -r public/* $PREFIX/include/nspr/
+          mkdir -p $PREFIX/lib
+          cp lib/*.a $PREFIX/lib/
+
+      - name: Download NSS
+        run: |
+          wget https://ftp.mozilla.org/pub/security/nss/releases/NSS_${NSS_VERSION}_RTM/src/nss-${NSS_VERSION}.tar.gz
+          tar xf nss-${NSS_VERSION}.tar.gz
+          mv nss-${NSS_VERSION} nss
+
+      - name: Build NSS (cross‑compile Windows x64)
+        run: |
+          cd nss
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32
+          mkdir -p $PREFIX/include/nss
+          cp -r public/* $PREFIX/include/nss/
+          mkdir -p $PREFIX/lib
+          cp lib/*.a $PREFIX/lib/
 
       - name: Build curl (cross‑compile Windows x64)
         run: |
