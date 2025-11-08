@@ -19,7 +19,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y build-essential gmake python2 mingw-w64 git perl cmake zip
+          sudo apt install -y build-essential python2-minimal mingw-w64 git perl cmake zip
+          sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
 
       - name: Clone NSS and NSPR
         run: |
