@@ -15,14 +15,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y \
-            build-essential \
-            mingw-w64 \
-            git \
-            cmake \
-            zip \
-            wget
+          sudo apt-get update
+          sudo apt-get install -y build-essential mingw-w64 git cmake zip wget
+
 
       - name: Download NSS (with built-in NSPR)
         run: |
