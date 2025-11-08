@@ -41,8 +41,11 @@ jobs:
       - name: Build NSS (cross‑compile Windows x64)
         run: |
           cd nss
-          mkdir build && cd build
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 install DESTDIR=$PREFIX
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32
+          mkdir -p $PREFIX/include/nspr
+          cp -r public/* $PREFIX/include/nspr/
+          mkdir -p $PREFIX/lib
+          cp lib/*.a $PREFIX/lib/
 
       - name: Build curl (cross‑compile Windows x64)
         run: |
