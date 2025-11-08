@@ -9,13 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      PREFIX: ${{ github.workspace }}/dist/windows
-      CURL_VERSION: "8.17.0"
-      NSS_VERSION: "3.91"
-      DEBIAN_FRONTEND: noninteractive
-      TZ: Etc/UTC
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
