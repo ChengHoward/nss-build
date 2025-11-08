@@ -9,32 +9,42 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      PREFIX: ${{ github.workspace }}/dist/windows
+      CURL_VERSION: "8.17.0"
+      NSS_RELEASE_DIR: "NSS_3_100_RTM"
+      NSS_SHORT: "3.100"
+      DEBIAN_FRONTEND: noninteractive
+      TZ: Etc/UTC
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Install dependencies
         run: |
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout="10" -o Acquire::https::Timeout="10"
-          sudo apt-get install -y build-essential mingw-w64 git cmake zip wget
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            mingw-w64 \
+            git \
+            cmake \
+            zip \
+            wget
 
-
-      - name: Download NSS
+      - name: Download and extract NSS
         run: |
-          NSS_VERSION=3.91
-          wget https://ftp.mozilla.org/pub/nss/releases/NSS_${NSS_VERSION}_RTM/src/nss-${NSS_VERSION}.tar.gz
-          tar xf nss-${NSS_VERSION}.tar.gz
-          mv nss-${NSS_VERSION} nss
+          wget https://ftp.mozilla.org/pub/security/nss/releases/${NSS_RELEASE_DIR}/src/nss-${NSS_SHORT}.tar.gz
+          tar xf nss-${NSS_SHORT}.tar.gz
+          mv nss-${NSS_SHORT} nss
 
-
-      - name: Build NSS (cross-compile Windows x64)
+      - name: Build NSS (cross‑compile Windows x64)
         run: |
           cd nss
           mkdir build && cd build
-          # 使用 NSS 自带 Makefile 编译 Windows 版本
           make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 install DESTDIR=$PREFIX
 
-      - name: Build curl (cross-compile Windows x64)
+      - name: Build curl (cross‑compile Windows x64)
         run: |
           git clone --branch curl-${CURL_VERSION} https://github.com/curl/curl.git curl-src
           mkdir curl-build && cd curl-build
