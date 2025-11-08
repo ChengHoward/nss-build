@@ -9,11 +9,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:20.04   # Ubuntu 20.04 默认支持 python2
+      image: ubuntu:20.04
 
     env:
       PREFIX: ${{ github.workspace }}/dist/windows
       CURL_VERSION: "8.17.0"
+      NSPR_VERSION: "4.33"
+      NSS_VERSION: "3.91"
       DEBIAN_FRONTEND: noninteractive
       TZ: Etc/UTC
 
@@ -24,27 +26,36 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y build-essential python2 mingw-w64 git perl cmake zip
+          apt-get install -y build-essential python2 mingw-w64 git perl cmake zip autoconf automake libtool pkg-config
 
-      - name: Clone NSS and NSPR
+      - name: Clone NSPR stable release
         run: |
-          git clone https://github.com/nss-dev/nss.git nss
-          git clone https://github.com/nss-dev/nspr.git nspr
+          wget https://ftp.mozilla.org/pub/nspr/releases/v${NSPR_VERSION}/src/nspr-${NSPR_VERSION}.tar.gz
+          tar xf nspr-${NSPR_VERSION}.tar.gz
+          mv nspr-${NSPR_VERSION} nspr
 
       - name: Build NSPR (cross-compile)
         run: |
           cd nspr
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32-
-          mkdir -p $PREFIX/include/nspr
-          cp -r public/* $PREFIX/include/nspr/
-          mkdir -p $PREFIX/lib
-          cp lib/*.a $PREFIX/lib/
+          mkdir build && cd build
+          ../configure --host=x86_64-w64-mingw32 --prefix=$PREFIX
+          make -j$(nproc)
+          make install
+
+      - name: Clone NSS stable release
+        run: |
+          wget https://ftp.mozilla.org/pub/nss/releases/NSS_${NSS_VERSION}_RTM/src/nss-${NSS_VERSION}.tar.gz
+          tar xf nss-${NSS_VERSION}.tar.gz
+          mv nss-${NSS_VERSION} nss
 
       - name: Build NSS (cross-compile)
         run: |
           cd nss
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 \
-            NSPR_INCLUDE_DIR=$PREFIX/include NSPR_LIB_DIR=$PREFIX/lib install DESTDIR=$PREFIX
+          mkdir build && cd build
+          # 指定 NSPR 的 include/lib
+          export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
+          export NSPR_LIB_DIR=$PREFIX/lib
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 NSPR_INCLUDE_DIR=$NSPR_INCLUDE_DIR NSPR_LIB_DIR=$NSPR_LIB_DIR install DESTDIR=$PREFIX
 
       - name: Build curl (cross-compile)
         run: |
@@ -62,7 +73,7 @@ jobs:
         run: |
           mkdir -p $PREFIX/bin
           cp curl-build/src/curl.exe $PREFIX/bin/
-          cp $PREFIX/lib/*.dll $PREFIX/bin/ || true  # 拷贝 NSS DLL
+          cp $PREFIX/lib/*.dll $PREFIX/bin/ || true
           cd $PREFIX
           zip -r curl-nss-windows.zip bin/
 
