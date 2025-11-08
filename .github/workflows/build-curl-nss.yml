@@ -1,0 +1,66 @@
+name: Build curl + NSS (Windows x64)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PREFIX: ${{ github.workspace }}/dist/windows
+      CURL_VERSION: "8.17.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential gmake python2 mingw-w64 git perl cmake zip
+
+      - name: Clone NSS and NSPR
+        run: |
+          git clone https://github.com/nss-dev/nss.git nss
+          git clone https://github.com/nss-dev/nspr.git nspr
+
+      - name: Build NSPR (cross-compile)
+        run: |
+          cd nspr
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32- install DESTDIR=$PREFIX
+
+      - name: Build NSS (cross-compile)
+        run: |
+          cd nss
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 \
+            NSPR_INCLUDE_DIR=$PREFIX/include NSPR_LIB_DIR=$PREFIX/lib install DESTDIR=$PREFIX
+
+      - name: Build curl (cross-compile)
+        run: |
+          git clone --branch curl-${CURL_VERSION} https://github.com/curl/curl.git curl-src
+          mkdir curl-build && cd curl-build
+          cmake ../curl-src \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCURL_USE_NSS=ON \
+            -DNSS_ROOT=$PREFIX \
+            -DBUILD_CURL_EXE=ON \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake
+          make -j$(nproc)
+
+      - name: Package Windows curl
+        run: |
+          mkdir -p $PREFIX/bin
+          cp curl-build/src/curl.exe $PREFIX/bin/
+          cp $PREFIX/lib/*.dll $PREFIX/bin/ || true  # 拷贝 NSS DLL
+          cd $PREFIX
+          zip -r curl-nss-windows.zip bin/
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: curl-nss-windows
+          path: $PREFIX/curl-nss-windows.zip
