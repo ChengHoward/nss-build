@@ -34,7 +34,11 @@ jobs:
       - name: Build NSPR (cross-compile)
         run: |
           cd nspr
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32- install DESTDIR=$PREFIX
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32-
+          mkdir -p $PREFIX/include/nspr
+          cp -r public/* $PREFIX/include/nspr/
+          mkdir -p $PREFIX/lib
+          cp lib/*.a $PREFIX/lib/
 
       - name: Build NSS (cross-compile)
         run: |
