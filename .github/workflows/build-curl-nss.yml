@@ -9,13 +9,22 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ubuntu:20.04   # Ubuntu 20.04 有 python2
+      image: ubuntu:20.04   # Ubuntu 20.04 默认支持 python2
+
+    env:
+      PREFIX: ${{ github.workspace }}/dist/windows
+      CURL_VERSION: "8.17.0"
+      DEBIAN_FRONTEND: noninteractive
+      TZ: Etc/UTC
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Install deps
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
         run: |
-          apt update
-          apt install -y build-essential python2 mingw-w64 git perl cmake zip
+          apt-get update
+          apt-get install -y build-essential python2 mingw-w64 git perl cmake zip
 
       - name: Clone NSS and NSPR
         run: |
@@ -42,8 +51,7 @@ jobs:
             -DCURL_USE_NSS=ON \
             -DNSS_ROOT=$PREFIX \
             -DBUILD_CURL_EXE=ON \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake
+            -DBUILD_SHARED_LIBS=OFF
           make -j$(nproc)
 
       - name: Package Windows curl
@@ -53,7 +61,6 @@ jobs:
           cp $PREFIX/lib/*.dll $PREFIX/bin/ || true  # 拷贝 NSS DLL
           cd $PREFIX
           zip -r curl-nss-windows.zip bin/
-        shell: bash
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
