@@ -1,4 +1,4 @@
-name: Build curl + NSS (Windows x64)
+name: Build curl + NSS (Windows x64, native)
 
 on:
   push:
@@ -6,100 +6,104 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     env:
-      PREFIX: ${{ github.workspace }}/dist/windows
       CURL_VERSION: "8.17.0"
       NSPR_VERSION: "4.33"
       NSS_VERSION: "3.100"
-      DEBIAN_FRONTEND: noninteractive
-      TZ: Etc/UTC
+      PREFIX: ${{ github.workspace }}/dist/windows
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # --------------------------
+      # Install dependencies
+      # --------------------------
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential mingw-w64 git cmake zip wget unzip autoconf libtool pkg-config
+          choco install -y git cmake ninja
 
       # --------------------------
-      # NSPR
+      # Download NSPR
       # --------------------------
       - name: Download NSPR
         run: |
-          wget https://ftp.mozilla.org/pub/nspr/releases/v${NSPR_VERSION}/src/nspr-${NSPR_VERSION}.tar.gz
-          tar xf nspr-${NSPR_VERSION}.tar.gz
-          # 两级目录处理：内层是 nspr
-          mv nspr-${NSPR_VERSION}/nspr nspr
-          rm -rf nspr-${NSPR_VERSION}
+          Invoke-WebRequest -Uri "https://ftp.mozilla.org/pub/nspr/releases/v${env:NSPR_VERSION}/src/nspr-${env:NSPR_VERSION}.tar.gz" -OutFile "nspr-${env:NSPR_VERSION}.tar.gz"
+          tar -xzf "nspr-${env:NSPR_VERSION}.tar.gz"
+          # 两级目录处理
+          Move-Item -Path "nspr-${env:NSPR_VERSION}\nspr" -Destination "nspr"
+          Remove-Item -Recurse -Force "nspr-${env:NSPR_VERSION}"
 
-      - name: Build NSPR (cross-compile Windows x64)
+      - name: Build NSPR
+        shell: powershell
         run: |
           cd nspr
-          ./configure --host=x86_64-w64-mingw32 --prefix=$PREFIX
-          make -j$(nproc)
-          # 手动拷贝头文件和库
-          mkdir -p $PREFIX/include/nspr
-          cp -r public/* $PREFIX/include/nspr/
-          mkdir -p $PREFIX/lib
-          cp lib/*.a $PREFIX/lib/
+          nmake /f Makefile.nt TARGET=U /nologo
+          mkdir -p $env:PREFIX/include/nspr
+          Copy-Item -Recurse public/* $env:PREFIX/include/nspr
+          mkdir -p $env:PREFIX/lib
+          Copy-Item lib/*.lib $env:PREFIX/lib
 
       # --------------------------
-      # NSS
+      # Download NSS
       # --------------------------
       - name: Download NSS
         run: |
-          wget https://ftp.mozilla.org/pub/security/nss/releases/NSS_${NSS_VERSION}_RTM/src/nss-${NSS_VERSION}.tar.gz
-          tar xf nss-${NSS_VERSION}.tar.gz
-          # 两级目录处理：内层是 nss
-          mv nss-${NSS_VERSION}/nss nss
-          rm -rf nss-${NSS_VERSION}
+          Invoke-WebRequest -Uri "https://ftp.mozilla.org/pub/security/nss/releases/NSS_${env:NSS_VERSION}_RTM/src/nss-${env:NSS_VERSION}.tar.gz" -OutFile "nss-${env:NSS_VERSION}.tar.gz"
+          tar -xzf "nss-${env:NSS_VERSION}.tar.gz"
+          # 两级目录处理
+          Move-Item -Path "nss-${env:NSS_VERSION}\nss" -Destination "nss"
+          Remove-Item -Recurse -Force "nss-${env:NSS_VERSION}"
 
-      - name: Build NSS (cross-compile Windows x64)
+      - name: Build NSS
+        shell: powershell
         run: |
           cd nss
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32
-          mkdir -p $PREFIX/include/nss
-          cp -r public/* $PREFIX/include/nss/
-          mkdir -p $PREFIX/lib
-          cp lib/*.a $PREFIX/lib/
+          nmake /f Makefile.nt TARGET=U /nologo
+          mkdir -p $env:PREFIX/include/nss
+          Copy-Item -Recurse public/* $env:PREFIX/include/nss
+          mkdir -p $env:PREFIX/lib
+          Copy-Item lib/*.lib $env:PREFIX/lib
 
       # --------------------------
-      # curl
+      # Clone curl
       # --------------------------
       - name: Clone curl
-        run: |
-          git clone --branch curl-${CURL_VERSION} https://github.com/curl/curl.git curl-src
+        run: git clone --branch curl-${{ env.CURL_VERSION }} https://github.com/curl/curl.git curl-src
 
-      - name: Build curl (cross-compile Windows x64)
+      # --------------------------
+      # Build curl with NSS
+      # --------------------------
+      - name: Build curl
+        shell: powershell
         run: |
-          mkdir curl-build && cd curl-build
-          cmake ../curl-src \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCURL_USE_NSS=ON \
-            -DNSS_ROOT=$PREFIX \
-            -DBUILD_CURL_EXE=ON \
+          mkdir curl-build
+          cd curl-build
+          cmake ..\curl-src `
+            -G "NMake Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCURL_USE_NSS=ON `
+            -DNSS_ROOT=$env:PREFIX `
+            -DBUILD_CURL_EXE=ON `
             -DBUILD_SHARED_LIBS=OFF
-          make -j$(nproc)
+          nmake /nologo
 
       # --------------------------
       # Package output
       # --------------------------
-      - name: Package Windows curl
+      - name: Package curl
+        shell: powershell
         run: |
-          mkdir -p $PREFIX/bin
-          cp curl-build/src/curl.exe $PREFIX/bin/
-          # 如果有 dll，可以一起打包
-          cp $PREFIX/lib/*.dll $PREFIX/bin/ || true
-          cd $PREFIX
-          zip -r curl-nss-windows.zip bin/
+          mkdir -p $env:PREFIX/bin
+          Copy-Item curl-build/src/curl.exe $env:PREFIX/bin
+          Copy-Item $env:PREFIX/lib/*.dll $env:PREFIX/bin -ErrorAction SilentlyContinue
+          Compress-Archive -Path $env:PREFIX/bin/* -DestinationPath $env:PREFIX/curl-nss-windows.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: curl-nss-windows
-          path: $PREFIX/curl-nss-windows.zip
+          path: ${{ env.PREFIX }}/curl-nss-windows.zip
