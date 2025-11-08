@@ -8,19 +8,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      PREFIX: ${{ github.workspace }}/dist/windows
-      CURL_VERSION: "8.17.0"
-
+    container:
+      image: ubuntu:20.04   # Ubuntu 20.04 有 python2
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
+      - uses: actions/checkout@v3
+      - name: Install deps
         run: |
-          sudo apt update
-          sudo apt install -y build-essential python2-minimal mingw-w64 git perl cmake zip
-          sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
+          apt update
+          apt install -y build-essential python2 mingw-w64 git perl cmake zip
 
       - name: Clone NSS and NSPR
         run: |
