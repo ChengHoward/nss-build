@@ -39,7 +39,11 @@ jobs:
       # Clone curl
       # --------------------------
       - name: Clone curl
-        run: git clone --branch curl-${{ env.CURL_VERSION }} https://github.com/curl/curl.git curl-src
+        run: |
+          git clone https://github.com/curl/curl.git curl-src
+          cd curl-src
+          git checkout tags/curl-8_17_0 -b build-8_17_0
+      
 
       # --------------------------
       # Build curl with NSS via vcpkg
