@@ -39,9 +39,8 @@ jobs:
             libtool \
             pkg-config \
             wget
-      
 
-      - name: Clone NSPR stable release
+      - name: Download and extract NSPR
         run: |
           wget https://ftp.mozilla.org/pub/nspr/releases/v${NSPR_VERSION}/src/nspr-${NSPR_VERSION}.tar.gz
           tar xf nspr-${NSPR_VERSION}.tar.gz
@@ -50,12 +49,11 @@ jobs:
       - name: Build NSPR (cross-compile)
         run: |
           cd nspr
-          mkdir build && cd build
-          ../configure --host=x86_64-w64-mingw32 --prefix=$PREFIX
+          ./configure --host=x86_64-w64-mingw32 --prefix=$PREFIX
           make -j$(nproc)
           make install
 
-      - name: Clone NSS stable release
+      - name: Download and extract NSS
         run: |
           wget https://ftp.mozilla.org/pub/nss/releases/NSS_${NSS_VERSION}_RTM/src/nss-${NSS_VERSION}.tar.gz
           tar xf nss-${NSS_VERSION}.tar.gz
@@ -65,10 +63,10 @@ jobs:
         run: |
           cd nss
           mkdir build && cd build
-          # 指定 NSPR 的 include/lib
           export NSPR_INCLUDE_DIR=$PREFIX/include/nspr
           export NSPR_LIB_DIR=$PREFIX/lib
-          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 NSPR_INCLUDE_DIR=$NSPR_INCLUDE_DIR NSPR_LIB_DIR=$NSPR_LIB_DIR install DESTDIR=$PREFIX
+          make BUILD_OPT=1 TARGET=Win32 CROSS_COMPILE=x86_64-w64-mingw32 \
+            NSPR_INCLUDE_DIR=$NSPR_INCLUDE_DIR NSPR_LIB_DIR=$NSPR_LIB_DIR install DESTDIR=$PREFIX
 
       - name: Build curl (cross-compile)
         run: |
