@@ -84,10 +84,12 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_TOOLCHAIN" `
             -DCMAKE_BUILD_TYPE=Release `
             -DCURL_USE_NSS=ON `
+            -DCURL_USE_LIBPSL=OFF `
             -DBUILD_CURL_EXE=ON `
             -DBUILD_SHARED_LIBS=OFF
 
           cmake --build . --config Release
+      
 
       # --------------------------
       # Package output
