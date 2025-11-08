@@ -60,7 +60,7 @@ jobs:
         shell: bash
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: curl-nss-windows
           path: $PREFIX/curl-nss-windows.zip
